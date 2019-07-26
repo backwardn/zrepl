@@ -11,6 +11,7 @@ import (
 
 	"github.com/zrepl/zrepl/config"
 	"github.com/zrepl/zrepl/daemon/filters"
+	"github.com/zrepl/zrepl/daemon/hooks"
 	"github.com/zrepl/zrepl/logger"
 	"github.com/zrepl/zrepl/zfs"
 )
@@ -46,6 +47,7 @@ type args struct {
 	interval       time.Duration
 	fsf            *filters.DatasetMapFilter
 	snapshotsTaken chan<- struct{}
+	hooks          config.HookSettings
 }
 
 type Snapper struct {
@@ -127,6 +129,7 @@ func PeriodicFromConfig(g *config.Global, fsf *filters.DatasetMapFilter, in *con
 		prefix:   in.Prefix,
 		interval: in.Interval,
 		fsf:      fsf,
+		hooks:    in.Hooks,
 		// ctx and log is set in Run()
 	}
 
@@ -257,13 +260,56 @@ func snapshot(a args, u updater) state {
 			progress.state = SnapStarted
 		})
 
-		l.Debug("create snapshot")
-		err := zfs.ZFSSnapshot(fs, snapname, false)
-		if err != nil {
-			hadErr = true
-			l.WithError(err).Error("cannot create snapshot")
+		hookEnv := map[string]string{
+			"ZREPL_HOOKTYPE": "pre",
+			"ZREPL_PHASE": "Snapshotting",
+			"ZREPL_FS": fs.ToString(),
+			"ZREPL_SNAPNAME": snapname,
 		}
-		doneAt := time.Now()
+		var err error
+		var preHookErr error
+		var doneAt time.Time
+		if (a.hooks.Pre != "") {
+			l.Debug("pre-snapshot hook")
+			preHookErr = hooks.RunHookCommand(
+				a.ctx,
+				a.hooks.Pre,
+				hookEnv,
+				a.hooks.Timeout,
+			)
+			if preHookErr != nil {
+				l.WithError(preHookErr).Error("cannot run pre-snapshot hook")
+			}
+		}
+
+		if preHookErr == nil || a.hooks.Keep {
+			l.Debug("create snapshot")
+			err = zfs.ZFSSnapshot(fs, snapname, false)
+			if err != nil {
+				hadErr = true
+				l.WithError(err).Error("cannot create snapshot")
+			}
+			doneAt = time.Now()
+
+			if !hadErr {
+                hookEnv["ZREPL_HOOKTYPE"] = "post"
+				if (a.hooks.Post != "") {
+					l.Debug("post-snapshot hook")
+					postHookErr := hooks.RunHookCommand(
+						a.ctx,
+						a.hooks.Post,
+						hookEnv,
+						a.hooks.Timeout,
+					)
+					if postHookErr != nil {
+						l.WithError(postHookErr).Error("cannot run post-snapshot hook")
+					}
+				}
+			}
+		} else {
+			hadErr = true
+			l.Error("skipping snapshot due to pre-snapshot hook error")
+		}
 
 		u(func(snapper *Snapper) {
 			progress.doneAt = doneAt

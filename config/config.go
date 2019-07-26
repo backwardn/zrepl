@@ -139,6 +139,7 @@ type SnapshottingPeriodic struct {
 	Type     string        `yaml:"type"`
 	Prefix   string        `yaml:"prefix"`
 	Interval time.Duration `yaml:"interval,positive"`
+	Hooks    HookSettings  `yaml:"hooks,optional"`
 }
 
 type SnapshottingManual struct {
@@ -359,6 +360,13 @@ type JobDebugSettings struct {
 		WriteDump string `yaml:"write_dump"`
 	} `yaml:"conn,optional"`
 	RPCLog bool `yaml:"rpc_log,optional,default=false"`
+}
+
+type HookSettings struct {
+	Pre      string        `yaml:"pre,optional"`
+	Post     string        `yaml:"post,optional"`
+	Timeout  time.Duration `yaml:"timeout,optional,positive,default=30s"`
+	Keep     bool          `yaml:"keep_inconsistent,optional,default=false"`
 }
 
 func enumUnmarshal(u func(interface{}, bool) error, types map[string]interface{}) (interface{}, error) {
