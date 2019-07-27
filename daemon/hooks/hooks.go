@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"bufio"
 	"bytes"
@@ -77,13 +78,19 @@ func (w *logWriter) Close() error {
 }
 
 
-func RunHookCommand(ctx context.Context, command string, env map[string]string, timeout time.Duration) error {
+func RunHookCommand(ctx context.Context, commandDir string, command string, env map[string]string, timeout time.Duration) error {
 	l := getLogger(ctx)
 
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmdExec := exec.CommandContext(cmdCtx, command)
+	var cmdPath string
+	if filepath.IsAbs(command) {
+		cmdPath = command
+	} else {
+		cmdPath = filepath.Join(commandDir,command)
+	}
+	cmdExec := exec.CommandContext(cmdCtx, cmdPath)
 	cmdEnv := os.Environ()
 	for k, v := range env {
 		cmdEnv = append(cmdEnv, fmt.Sprintf("%s=%s", k, v))

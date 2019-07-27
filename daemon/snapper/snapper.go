@@ -48,6 +48,7 @@ type args struct {
 	fsf            *filters.DatasetMapFilter
 	snapshotsTaken chan<- struct{}
 	hooks          config.HookSettings
+	hookDir        string
 }
 
 type Snapper struct {
@@ -130,6 +131,7 @@ func PeriodicFromConfig(g *config.Global, fsf *filters.DatasetMapFilter, in *con
 		interval: in.Interval,
 		fsf:      fsf,
 		hooks:    in.Hooks,
+		hookDir:  g.GetConfigDir(),
 		// ctx and log is set in Run()
 	}
 
@@ -273,6 +275,7 @@ func snapshot(a args, u updater) state {
 			l.Debug("pre-snapshot hook")
 			preHookErr = hooks.RunHookCommand(
 				a.ctx,
+				a.hookDir,
 				a.hooks.Pre,
 				hookEnv,
 				a.hooks.Timeout,
@@ -297,6 +300,7 @@ func snapshot(a args, u updater) state {
 					l.Debug("post-snapshot hook")
 					postHookErr := hooks.RunHookCommand(
 						a.ctx,
+						a.hookDir,
 						a.hooks.Post,
 						hookEnv,
 						a.hooks.Timeout,

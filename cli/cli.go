@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -88,6 +89,11 @@ func (s *Subcommand) tryParseConfig() {
 			fmt.Fprintf(os.Stderr, "could not parse config: %s\n", err)
 			os.Exit(1)
 		}
+	}
+	err = config.Global.SetConfigDir(filepath.Dir(rootArgs.configPath))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not stat config directory: %s\n", err)
+		os.Exit(1)
 	}
 	s.config = config
 }

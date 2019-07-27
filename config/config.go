@@ -175,10 +175,30 @@ format: "human"
 var _ yaml.Defaulter = &LoggingOutletEnumList{}
 
 type Global struct {
+	configDir string
+
 	Logging    *LoggingOutletEnumList `yaml:"logging,optional,fromdefaults"`
 	Monitoring []MonitoringEnum       `yaml:"monitoring,optional"`
 	Control    *GlobalControl         `yaml:"control,optional,fromdefaults"`
 	Serve      *GlobalServe           `yaml:"serve,optional,fromdefaults"`
+}
+
+func (g *Global) SetConfigDir(path string) error {
+	dirStat, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+
+	if !dirStat.IsDir() {
+		return fmt.Errorf("implementation error: %q is not a directory", path)
+	}
+
+	g.configDir = path
+	return nil
+}
+
+func (g *Global) GetConfigDir() string {
+	return g.configDir
 }
 
 func Default(i interface{}) {
