@@ -173,6 +173,72 @@ Note that you will have to trigger replication manually using the ``zrepl signal
        type: manual
      ...
 
+.. _job-snapshotting-hooks:
+
+Pre- and post-snapshot Hooks
+----------------------------
+
+Jobs with `periodic snapshots <job-snapshotting-spec_>`_ can run an executable before and/or after taking the snapshot,
+configured in an optional ``hooks`` section of the ``snapshotting`` configuration:
+
+::
+
+
+    jobs:
+    - type: push
+      filesystems: {
+        "<": true,
+        "tmp": false
+      }
+      snapshotting:
+        type: periodic
+        prefix: zrepl_
+        interval: 10m
+        hooks:
+          pre: scripts/pre-snapshot.sh
+          post: /path/to/scripts/zrepl-notify.sh
+          timeout: 30s
+          keep_inconsistent: false
+      ...
+
+The path to the hook executables must either be absolute (e.g. ``/opt/bin/zrepl-notify.sh``) or is relative to the current configuration
+file directory (e.g. ``scripts/pre-snapshot.sh`` will be found in ``/etc/zrepl/scripts/pre-snapshot.sh``).
+No arguments may be specified; create a wrapper script if zrepl must call an executable that requires arguments.
+The configuration may specify a ``pre`` script only, a ``post`` script only, or both.
+
+The ``timeout`` parameter is optional and specifies a period after which zrepl will kill the hook process and report an error.
+The default is 30 seconds and may be specified in any units understood by `time.ParseDuration <https://golang.org/pkg/time/#ParseDuration>`_.
+
+The ``keep_inconsistent`` parameter specifies whether a snapshot will be taken after a failed pre-snapshot hook. The default
+is ``false``, meaning the snapshot will be skipped in the pre-snapshot hook process exits with an error or the timeout is exceeded.
+Setting ``keep_inconsistent: true`` will allow snapshots to be taken even if the pre-snapshot hook fails, but could result in
+inconsistent snapshots if, for example, the pre-snapshot script is asking a database to write its state to disk.
+
+Zrepl sets a number of environment variables for the hook processes:
+
+* ``ZREPL_HOOKTYPE``: either "pre" or "post"
+* ``ZREPL_PHASE``: "Snapshotting"
+* ``ZREPL_FS``: the ZFS filesystem name being snapshotted
+* ``ZREPL_SNAPNAME``: the zrepl-generated snapshot name (e.g. ``zrepl_20380119_031407_000``)
+
+As many pre-snapshot hook activities may affect only a single filesystem, the script or executable may wish
+to test the ``ZREPL_FS`` environment variable's contents. Example:
+
+::
+
+    #!/bin/sh
+
+    if [ "$ZREPL_FS" = "tank/data/postgresql" ]; then
+      /usr/local/bin/psql --no-psqlrc --echo-errors -c 'CHECKPOINT;' mydatabase
+    fi
+
+Do not exit with an error, however, if the script skips certain filesystems, because the default ``keep_inconsistent: false``
+will skip snapshotting if the pre-snapshot hook exits with a non-zero return value.
+
+An alternative to writing many if conditions in snapshot scripts is to put multiple ``push`` or ``snap`` jobs in the zrepl
+configuration, each with their own ``hooks`` section. See `the following section on Multiple Jobs <jobs-multiple-jobs_>`_ for
+potential complications to this approach.
+
 .. _jobs-multiple-jobs:
 
 Multiple Jobs & More than 2 Machines
