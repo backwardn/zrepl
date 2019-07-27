@@ -113,6 +113,10 @@ func RunHookCommand(ctx context.Context, commandDir string, command string, env 
 
 	err = cmdExec.Wait()
 	if err != nil {
+		if cmdCtx.Err() == context.DeadlineExceeded {
+			l.Error(fmt.Sprintf("hook command timed out after %s", timeout))
+			return cmdCtx.Err()
+		}
 		l.WithError(err).Error("hook command exited with error")
 		return err
 	}
