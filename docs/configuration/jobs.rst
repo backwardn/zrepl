@@ -239,6 +239,8 @@ An alternative to writing many if conditions in snapshot scripts is to put multi
 configuration, each with their own ``hooks`` section. See `the following section on Multiple Jobs <jobs-multiple-jobs_>`_ for
 potential complications to this approach.
 
+The script's standard output is logged at level INFO by zrepl. The standard error is logged at level WARN.
+
 .. _jobs-multiple-jobs:
 
 Multiple Jobs & More than 2 Machines
